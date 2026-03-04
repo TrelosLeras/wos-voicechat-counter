@@ -1,14 +1,24 @@
 @echo off
 setlocal
 
+:: Force elevation
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+    powershell -Command "Start-Process '%~f0' -Verb RunAs -WindowStyle Normal -WorkingDirectory '%~dp0'"
+    exit /b
+)
+
+:: Force working directory to script location after elevation
+cd /d "%~dp0"
+
 for /f %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
 
 set "BLUE=%ESC%[34m"
 set "GREEN=%ESC%[32m"
-set "MAGNETA=%ESC%[35m"
+set "MAGENTA=%ESC%[35m"
 set "RESET=%ESC%[0m"
 
-echo %MAGNETA%==============================
+echo %MAGENTA%==============================
 echo Rally Countdown Voice bot
 echo ==============================%RESET%
 echo.
@@ -62,14 +72,15 @@ echo %BLUE% Everything is set up. Time to build the container. %RESET%
 echo.
 
 timeout /t 2 /nobreak >nul
-cmd /c npm install --omit=dev --no-audit --no-fund --quiet
-net start com.docker.service
+start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+   timeout /t 15 /nobreak >nul
+cmd /c npm install --no-audit --no-fund
 docker compose build
 
 :: Create start
 (
-echo @echo
-echo net start com.docker.service
+echo @echo off
+echo timeout /t 5 /nobreak >nul
 echo docker compose up -d
 echo echo.
 echo echo you can close this window now
@@ -77,19 +88,25 @@ echo echo.
 echo pause
 ) > start.bat
 
+:: Create stop
+(
+echo @echo off
+echo timeout /t 5 /nobreak >nul
+echo docker compose down
+echo echo.
+echo echo you can close this window now
+echo echo.
+echo pause
+) > stop.bat
+
 cls
-echo %MAGNETA% ==============================
+echo %MAGENTA% ==============================
 echo Installation has successfully finished
 echo ============================== %RESET%
 echo.
 echo %BLUE% You can now start your bot by clicking the start.bat file. %RESET%
 echo.
-echo %MAGNETA% Happy battling! %RESET%
+echo %MAGENTA% Happy battling! %RESET%
 pause
 
 endlocal
-
-
-
-
-
