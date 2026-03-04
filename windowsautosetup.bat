@@ -69,7 +69,7 @@ docker compose build
 :: Create start
 (
 echo @echo
-echo timeout /t 5 /nobreak >nul
+echo net start com.docker.service
 echo docker compose up -d
 echo echo.
 echo echo you can close this window now
@@ -88,4 +88,5 @@ echo %MAGNETA% Happy battling! %RESET%
 pause
 
 endlocal
+
 
