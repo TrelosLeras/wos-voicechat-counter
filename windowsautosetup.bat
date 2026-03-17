@@ -37,7 +37,8 @@ if %errorlevel% neq 0 (
     goto :install_node
 )
 
-for /f "tokens=2 delims=v." %%a in ('node --version') do set "NODE_MAJOR=%%a"
+for /f "tokens=1 delims=." %%a in ('node --version') do set "NODE_VER_RAW=%%a"
+set "NODE_MAJOR=%NODE_VER_RAW:~1%"
 echo %BLUE% Detected Node.js major version: %NODE_MAJOR% %RESET%
 
 if "%NODE_MAJOR%"=="22" (
@@ -57,7 +58,7 @@ if %errorlevel% neq 0 (
 )
 
 echo %BLUE% Installing Node.js v22.14.0... %RESET%
-msiexec /i "%TEMP%\node-installer.msi" /quiet /norestart ADDLOCAL=ALL
+start /wait msiexec /i "%TEMP%\node-installer.msi" /passive /norestart
 if %errorlevel% neq 0 (
     echo %RED% Node.js installation failed. %RESET%
     pause
@@ -202,4 +203,3 @@ echo %MAGENTA% Happy battling! %RESET%
 pause
 
 endlocal
-
