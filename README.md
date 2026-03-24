@@ -148,6 +148,10 @@ All three players arrive at the same second. 🎯
 
 ---
 
+## Contributing and original creator support
+
+Feel free to submit issues and enhancement requests! If you like the project you can buy me a coffee :P https://buymeacoffee.com/bj0rd
+
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE)
