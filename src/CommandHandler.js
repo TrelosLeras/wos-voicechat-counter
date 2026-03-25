@@ -326,7 +326,12 @@ class CommandHandler {
     // Defer immediately — joinVoiceChannel can take several seconds and
     // Discord will invalidate the interaction token after 3 s if unreplied.
     await interaction.deferReply();
-    await this.client.voiceManager.joinVoiceChannel(interaction);
+    try {
+      await this.client.voiceManager.joinVoiceChannel(interaction);
+    } catch (err) {
+      await interaction.editReply({ content: `❌ ${err.message}` });
+      return;
+    }
     const embed = new EmbedBuilder()
       .setTitle('🎤 Voice Channel Joined!')
       .setColor('#4CAF50')
@@ -334,7 +339,6 @@ class CommandHandler {
       .setTimestamp();
     await interaction.editReply({ embeds: [embed] });
   }
-
   async _handleLeave(interaction) {
     this.client.voiceManager.leaveVoiceChannel(interaction.guildId);
     const embed = new EmbedBuilder()
