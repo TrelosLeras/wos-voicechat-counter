@@ -6,6 +6,7 @@ A Discord bot that coordinates synchronized attacks in **Whiteout Survival** by 
 ## Wiki
 
 We made a github wiki for the bot with all kinds of guides (ai generated) you can find it all [here](https://github.com/ikketimnl/wos-voicechat-counter/wiki)
+
 ---
 
 ## ✨ Features
