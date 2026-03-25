@@ -169,6 +169,15 @@ class CommandHandler {
       return this._sendSettingsMenu(interaction, true);
     }
 
+    if (id === 'settings_cycle_intro_speed') {
+      const speeds = ['normal', 'slower', 'slow'];
+      const current = this.settings.introSpeed ?? 'normal';
+      const next = speeds[(speeds.indexOf(current) + 1) % speeds.length];
+      this.settings.introSpeed = next;
+      this.client.voiceManager.getTTSService().audioCache.clear();
+      return this._sendSettingsMenu(interaction, true);
+    }
+
     if (id === 'settings_toggle_direction') {
       this.settings.countDirection = this.settings.countDirection === 'down' ? 'up' : 'down';
       this.client.voiceManager.getTTSService().audioCache.clear();
@@ -424,6 +433,7 @@ class CommandHandler {
         { name: '🔊 TTS',        value: BotSettings.providerLabel(provider),          inline: true },
         { name: '🔢 Direction',  value: dir === 'up' ? 'Count Up ↑' : 'Count Down ↓', inline: true },
         { name: '📢 Intro',      value: intro ? '✅ Enabled' : '❌ Disabled',         inline: true },
+        { name: '🐢 Intro Speed', value: { normal: 'Normal', slower: 'Slower', slow: 'Slow' }[this.settings.get('introSpeed') ?? 'normal'], inline: true },
         { name: '💾 Cache',      value: `${cacheStats.libraryFiles} lib / ${cacheStats.countdownFiles} countdowns`, inline: true },
       )
       .setTimestamp();
@@ -465,6 +475,11 @@ class CommandHandler {
         {
           name:   '📢 Rally Intro',
           value:  `**Current:** ${intro ? '✅ Enabled' : '❌ Disabled'}`,
+          inline: true,
+        },
+        {
+          name:   '🐢 Intro Speed',
+          value:  `**Current:** ${{ normal: '🐇 Normal', slower: '🐢 Slower', slow: '🦥 Slow' }[this.settings.introSpeed ?? 'normal']}`,
           inline: true,
         },
         {
@@ -513,6 +528,10 @@ class CommandHandler {
         .setCustomId('settings_toggle_direction')
         .setLabel(dir === 'down' ? '🔢 Switch to Count Up' : '🔢 Switch to Count Down')
         .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('settings_cycle_intro_speed')
+        .setLabel(`🐢 Intro Speed: ${{ normal: 'Normal', slower: 'Slower', slow: 'Slow' }[this.settings.introSpeed ?? 'normal']}`)
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId('settings_refresh')
         .setLabel('🔄 Refresh')
