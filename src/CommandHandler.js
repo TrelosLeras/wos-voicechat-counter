@@ -9,6 +9,7 @@ const {
   StringSelectMenuBuilder,
   AttachmentBuilder,
   PermissionFlagsBits,
+  MessageFlags,
 } = require('discord.js');
 const path    = require('path');
 const https   = require('https');
@@ -146,11 +147,11 @@ class CommandHandler {
         case 'botupdate':  return await this._handleBotUpdate(interaction);
         case 'audio':      return await this._handleAudio(interaction);
         default:
-          await interaction.reply({ content: '❓ Unknown command.', ephemeral: true });
+          await interaction.reply({ content: '❓ Unknown command.', flags: MessageFlags.Ephemeral });
       }
     } catch (err) {
       console.error(`[CommandHandler] Error in ${interaction.commandName}:`, err);
-      const reply = { content: `❌ ${err.message}`, ephemeral: true };
+      const reply = { content: `❌ ${err.message}`, flags: MessageFlags.Ephemeral };
       if (interaction.deferred || interaction.replied) await interaction.followUp(reply);
       else await interaction.reply(reply);
     }
@@ -176,20 +177,20 @@ class CommandHandler {
 
     if (id === 'settings_clear_cache') {
       const n = this.client.voiceManager.getTTSService().clearCountdownCache();
-      await interaction.reply({ content: `🗑️ Cleared **${n}** cached countdown file(s).`, ephemeral: true });
+      await interaction.reply({ content: `🗑️ Cleared **${n}** cached countdown file(s).`, flags: MessageFlags.Ephemeral });
       return;
     }
 
     if (id === 'settings_clear_all_cache') {
       const n = this.client.voiceManager.getTTSService().clearAllCache();
-      await interaction.reply({ content: `🗑️ Cleared **${n}** cached file(s) (library + countdowns).`, ephemeral: true });
+      await interaction.reply({ content: `🗑️ Cleared **${n}** cached file(s) (library + countdowns).`, flags: MessageFlags.Ephemeral });
       return;
     }
 
     if (id === 'settings_tts_select') {
       const provider = interaction.values[0];
       if (!BotSettings.supportedProviders().includes(provider)) {
-        return interaction.reply({ content: '❌ Invalid provider.', ephemeral: true });
+        return interaction.reply({ content: '❌ Invalid provider.', flags: MessageFlags.Ephemeral });
       }
       this.settings.ttsProvider = provider;
       this.client.voiceManager.getTTSService().resetLibrary();
@@ -269,7 +270,7 @@ class CommandHandler {
     const players = this.client.playerManager.getPlayersByGroup(group);
 
     if (players.length === 0) {
-      return interaction.reply({ content: `❌ No players in Attack Group ${group}.`, ephemeral: true });
+      return interaction.reply({ content: `❌ No players in Attack Group ${group}.`, flags: MessageFlags.Ephemeral });
     }
 
     players.forEach(p => this.client.playerManager.removePlayer(p.name));
@@ -313,13 +314,16 @@ class CommandHandler {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async _handleJoin(interaction) {
+    // Defer immediately — joinVoiceChannel can take several seconds and
+    // Discord will invalidate the interaction token after 3 s if unreplied.
+    await interaction.deferReply();
     await this.client.voiceManager.joinVoiceChannel(interaction);
     const embed = new EmbedBuilder()
       .setTitle('🎤 Voice Channel Joined!')
       .setColor('#4CAF50')
       .setDescription('Ready for synchronized attacks!')
       .setTimestamp();
-    await interaction.reply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
   }
 
   async _handleLeave(interaction) {
@@ -340,10 +344,10 @@ class CommandHandler {
     const group = interaction.options.getInteger('group');
 
     if (!this.client.voiceManager.isInVoiceChannel(interaction.guildId)) {
-      return interaction.reply({ content: '❌ Join a voice channel first (`/join`).', ephemeral: true });
+      return interaction.reply({ content: '❌ Join a voice channel first (`/join`).', flags: MessageFlags.Ephemeral });
     }
     if (this.client.playerManager.getPlayerCount() === 0) {
-      return interaction.reply({ content: '❌ No players registered (`/register`).', ephemeral: true });
+      return interaction.reply({ content: '❌ No players registered (`/register`).', flags: MessageFlags.Ephemeral });
     }
 
     const timing = this.client.playerManager.calculateAttackTiming(group);
@@ -354,7 +358,7 @@ class CommandHandler {
     const group = interaction.options.getInteger('group');
 
     if (this.client.playerManager.getPlayerCount() === 0) {
-      return interaction.reply({ content: '❌ No players registered (`/register`).', ephemeral: true });
+      return interaction.reply({ content: '❌ No players registered (`/register`).', flags: MessageFlags.Ephemeral });
     }
 
     const { players, totalDuration, attackGroup } = this.client.playerManager.calculateAttackTiming(group);
@@ -386,7 +390,7 @@ class CommandHandler {
 
   async _handleStop(interaction) {
     if (!this.client.voiceManager.isCountdownActive(interaction.guildId)) {
-      return interaction.reply({ content: '❌ No active countdown.', ephemeral: true });
+      return interaction.reply({ content: '❌ No active countdown.', flags: MessageFlags.Ephemeral });
     }
     await this.client.voiceManager.stopAttackCountdown(interaction.guildId);
 
@@ -494,7 +498,7 @@ class CommandHandler {
           label:       BotSettings.providerLabel(p),
           value:       p,
           description: p === 'local' ? 'Auto-detects best available' :
-                       p === 'piper' ? 'Requires installation (see DOCKER.md)' : undefined,
+                       p === 'piper' ? 'Requires installation (see DOCKER.md) slow on low ram hostings' : undefined,
           default:     p === provider,
         }))),
     );
@@ -530,7 +534,7 @@ class CommandHandler {
     const payload = {
       embeds:     [embed],
       components: [providerSelect, row1, row2],
-      ephemeral:  true,
+      flags: MessageFlags.Ephemeral,
     };
 
     if (isUpdate) {
@@ -549,7 +553,7 @@ class CommandHandler {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async _handleBotUpdate(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const check = await this.updateManager.checkForUpdate();
 
@@ -617,14 +621,14 @@ class CommandHandler {
       case 'clear':    return this._audioClear(interaction);
       case 'coverage': return this._audioCoverage(interaction);
       default:
-        return interaction.reply({ content: '❓ Unknown audio subcommand.', ephemeral: true });
+        return interaction.reply({ content: '❓ Unknown audio subcommand.', flags: MessageFlags.Ephemeral });
     }
   }
 
   async _audioList(interaction) {
     const files = this.customAudio.listFiles();
     if (files.length === 0) {
-      return interaction.reply({ content: '📂 No custom audio files uploaded yet.\nUse `/audio upload` to add files.', ephemeral: true });
+      return interaction.reply({ content: '📂 No custom audio files uploaded yet.\nUse `/audio upload` to add files.', flags: MessageFlags.Ephemeral });
     }
     const lines = files.map(f => `• \`${f.filename}\` — ${f.sizeKb} KB${f.number !== null ? ` (number ${f.number})` : ''}`);
     const embed = new EmbedBuilder()
@@ -633,11 +637,11 @@ class CommandHandler {
       .setDescription(lines.join('\n'))
       .setFooter({ text: 'Files are stored in config/custom_audio/' })
       .setTimestamp();
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
 
   async _audioUpload(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const attachment = interaction.options.getAttachment('file');
     if (!attachment) return interaction.editReply('❌ No file attached.');
@@ -669,17 +673,17 @@ class CommandHandler {
     const result   = this.customAudio.deleteFile(filename);
 
     if (!result.success) {
-      return interaction.reply({ content: `❌ ${result.error}`, ephemeral: true });
+      return interaction.reply({ content: `❌ ${result.error}`, flags: MessageFlags.Ephemeral });
     }
 
     this.client.voiceManager.getTTSService().resetLibrary();
-    await interaction.reply({ content: `🗑️ Deleted \`${filename}\`.`, ephemeral: true });
+    await interaction.reply({ content: `🗑️ Deleted \`${filename}\`.`, flags: MessageFlags.Ephemeral });
   }
 
   async _audioClear(interaction) {
     const count = this.customAudio.clearAll();
     this.client.voiceManager.getTTSService().resetLibrary();
-    await interaction.reply({ content: `🗑️ Deleted **${count}** custom audio file(s).`, ephemeral: true });
+    await interaction.reply({ content: `🗑️ Deleted **${count}** custom audio file(s).`, flags: MessageFlags.Ephemeral });
   }
 
   async _audioCoverage(interaction) {
@@ -692,7 +696,7 @@ class CommandHandler {
         { name: `❌ Missing (${missing.length})`,  value: missing.length  ? missing.join(', ')  : 'None — all covered!', inline: false },
       )
       .setTimestamp();
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
 
   // ── Helper: download attachment ─────────────────────────────────────────────
