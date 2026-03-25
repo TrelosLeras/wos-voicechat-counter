@@ -55,8 +55,8 @@ class VoiceManager {
     connection.on(VoiceConnectionStatus.Disconnected, async () => {
       try {
         await Promise.race([
-          entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-          entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+          entersState(connection, VoiceConnectionStatus.Signalling, 10_000),
+          entersState(connection, VoiceConnectionStatus.Connecting, 10_000),
         ]);
       } catch {
         connection.destroy();
@@ -64,6 +64,11 @@ class VoiceManager {
         this.audioPlayers.delete(interaction.guildId);
       }
     });
+
+    // Wait for the connection to be fully established (up to 30 s).
+    // This must happen before returning so that any command immediately
+    // following /join (e.g. /launch) finds the connection in Ready state.
+    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
 
     return connection;
   }
