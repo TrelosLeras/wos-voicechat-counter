@@ -1,6 +1,10 @@
 'use strict';
 
 const {
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  ContainerBuilder,
   SlashCommandBuilder,
   EmbedBuilder,
   ActionRowBuilder,
