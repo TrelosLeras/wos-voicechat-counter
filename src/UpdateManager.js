@@ -306,6 +306,7 @@ class UpdateManager {
     const current = this.getCurrentVersion();
     try {
       const release = await this._fetchJson(GITHUB_API);
+      const parse = (v) => String(v).replace(/^[vV]/, '').split('.').map(Number);
 
       // Guard against unexpected API responses (rate limits, error objects, etc.)
       if (!release || typeof release !== 'object' || !release.tag_name) {
