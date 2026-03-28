@@ -465,122 +465,206 @@ class CommandHandler {
   }
 
   async _sendSettingsMenu(interaction, isUpdate) {
-    const provider    = this.settings.ttsProvider;
-    const dir         = this.settings.countDirection;
-    const intro       = this.settings.introEnabled;
-    const stats       = this.client.voiceManager.getTTSService().getCacheStats();
-    const customFiles = this.customAudio.listFiles();
+  const provider    = this.settings.ttsProvider;
+  const dir         = this.settings.countDirection;
+  const intro       = this.settings.introEnabled;
+  const stats       = this.client.voiceManager.getTTSService().getCacheStats();
+  const customFiles = this.customAudio.listFiles();
 
-    const embed = new EmbedBuilder()
-      .setTitle('⚙️ Bot Settings')
-      .setColor('#5865F2')
-      .setDescription('Use the controls below to configure the bot. Changes take effect immediately.')
-      .addFields(
-        {
-          name:   '🔊 Voice Generator (TTS Provider)',
-          value:  `**Current:** \`${BotSettings.providerLabel(provider)}\`\n` +
-                  `Use the dropdown to switch. Library will regenerate automatically.`,
-          inline: false,
-        },
-        {
-          name:   '🔢 Count Direction',
-          value:  `**Current:** ${dir === 'up' ? '**Count Up ↑** (1 → max)' : '**Count Down ↓** (max → 1)'}`,
-          inline: true,
-        },
-        {
-          name:   '📢 Rally Intro',
-          value:  `**Current:** ${intro ? '✅ Enabled' : '❌ Disabled'}`,
-          inline: true,
-        },
-        {
-          name:   '🐢 Intro Speed',
-          value:  `**Current:** ${{ normal: '🐇 Normal', slower: '🐢 Slower', slow: '🐌 Slow', slowest: '🦥 Slowest' }[this.settings.introSpeed ?? 'normal']}`,
-          inline: true,
-        },
-        {
-          name:   '💾 Audio Cache',
-          value:  `Library: **${stats.libraryFiles}** files\nCountdowns: **${stats.countdownFiles}** files`,
-          inline: true,
-        },
-        {
-          name:   '🎵 Custom Audio Files',
-          value:  customFiles.length
-            ? `**${customFiles.length}** file(s) uploaded.\nUse \`/audio list\` for details.`
-            : 'No custom audio. Use `/audio upload` to add files.',
-          inline: false,
-        },
-        {
-          name:   '📖 How to use Custom Audio',
-          value:  'Name files `<number>.wav` (e.g. `5.wav`) to replace TTS for that number.\n' +
-                  'Use `intro.wav` and `complete.wav` for the opening/closing phrases.',
-          inline: false,
-        },
+  const speedMap = {
+    normal:  ' 🐇 Normal',
+    slower:  ' 🐢 Slower',
+    slow:    ' 🐌 Slow',
+    slowest: ' 🦥 Slowest',
+  };
+
+  const currentSpeed = speedMap[this.settings.introSpeed ?? 'normal'];
+
+  // ═══════════════════════════════════════
+  // MAIN CONTAINER (UI)
+  // ═══════════════════════════════════════
+  const container = new ContainerBuilder()
+    .setAccentColor(0x5865F2)
+
+    // Header
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        "⚙️ **Bot Settings**\n Use the controls below to configure the bot."
       )
-      .setFooter({ text: 'Changes are saved automatically to config/settings.json' })
-      .setTimestamp();
+    )
 
-    // TTS provider select menu
-    const providerSelect = new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId('settings_tts_select')
-        .setPlaceholder('Change voice generator…')
-        .addOptions(BotSettings.supportedProviders().map(p => ({
-          label:       BotSettings.providerLabel(p),
+    .addSeparatorComponents(
+      new SeparatorBuilder().setDivider(true)
+    )
+
+    // TTS
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `🔊 **Voice Generator**\n` +
+        ` ╚ **Current:** \`${BotSettings.providerLabel(provider)}\`\n` +
+        `-# Changing this regenerates the library`
+      )
+    )
+
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
+
+    // Direction + Intro (grouped tighter)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `🔢 **Direction: ** ${dir === 'up'
+          ? ' **Count Up ↑ **(1 → max)'
+          : ' **Count Down ↓** (max →  1)'}\n`
+        )
+    )
+      
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
+    
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(        
+        `📢 **Intro:** ${intro ? ' ✅ Enabled' : ' ❌ Disabled'}\n`
+      )
+    )
+      
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
+      
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent( 
+        `🐢 **Speed:** ${currentSpeed}`
+      )
+    )
+
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
+
+    // Cache
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `💾 **Audio Cache**\n` +
+        ` ╚ Library: **${stats.libraryFiles}** files\n` +
+        ` ╚ Countdowns: **${stats.countdownFiles} files**`
+      )
+    )
+
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
+
+    // Custom Audio
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `🎵 **Custom Audio**\n` +
+        (customFiles.length
+          ? ` ╚ **${customFiles.length} file(s)** uploaded\n You can use \`/audio list\` to see uploaded files.`
+          : ' ╚ No files uploaded, Use `/audio upload`command to add files.')
+      )
+    )
+
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
+
+    // Custom Audio
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `📖 **How to use Custom Audio**\n` +
+        `• Name files \`<number>.wav\` to replaces TTS for that number\n` +
+        `• Use \`intro.wav\` and \`complete.wav\` for the opening/closing phrases`
+      )
+    )
+
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true))
+
+    // Footer
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `-# Changes are auto-saved to config/settings.json`
+      )
+    );
+
+  // ═══════════════════════════════════════
+  // CONTROLS
+  // ═══════════════════════════════════════
+
+  const providerSelect = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('settings_tts_select')
+      .setPlaceholder('Select TTS provider')
+      .addOptions(
+        BotSettings.supportedProviders().map(p => ({
+          label: BotSettings.providerLabel(p),
           value:       p,
           description: p === 'local' ? 'Auto-detects fastest and best available' :
                        p === 'piper' ? 'Best quality but slow on first generation' : undefined,
           default:     p === provider,
-        }))),
-    );
+        }))
+      )
+  );
 
-    // Button row 1
-    const row1 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('settings_toggle_intro')
-        .setLabel(intro ? '📢 Disable Intro' : '📢 Enable Intro')
-        .setStyle(intro ? ButtonStyle.Success : ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId('settings_toggle_direction')
-        .setLabel(dir === 'down' ? '🔢 Switch to Count Up' : '🔢 Switch to Count Down')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('settings_cycle_intro_speed')
-        .setLabel(`🐢 Intro Speed: ${{ normal: 'Normal', slower: 'Slower', slow: 'Slow', slowest: 'Slowest' }[this.settings.introSpeed ?? 'normal']}`)
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId('settings_refresh')
-        .setLabel('🔄 Refresh')
-        .setStyle(ButtonStyle.Secondary),
-    );
+  const controlsRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('settings_toggle_intro')
+      .setLabel(intro ? 'Disable Intro' : 'Enable Intro')
+      .setEmoji('📢')
+      .setStyle(intro ? ButtonStyle.Success : ButtonStyle.Secondary),
 
-    // Button row 2 — cache controls
-    const row2 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('settings_clear_cache')
-        .setLabel('🗑️ Clear Countdown Cache')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('settings_clear_all_cache')
-        .setLabel('🗑️ Clear ALL Cache (incl. library)')
-        .setStyle(ButtonStyle.Danger),
-    );
+    new ButtonBuilder()
+      .setCustomId('settings_toggle_direction')
+      .setLabel(dir === 'down' ? 'Switch to Count Up' : 'Switch to Count Down')
+      .setEmoji('🔢')
+      .setStyle(ButtonStyle.Primary),
 
-    const payload = {
-      embeds:     [embed],
-      components: [providerSelect, row1, row2],
-      flags:      MessageFlags.Ephemeral,
-    };
+    new ButtonBuilder()
+      .setCustomId('settings_cycle_intro_speed')
+      .setLabel('Speed')
+      .setEmoji('🐢')
+      .setStyle(ButtonStyle.Secondary),
 
-    if (isUpdate) {
+    new ButtonBuilder()
+      .setCustomId('settings_refresh')
+      .setLabel ('Refresh')
+      .setEmoji('🔄')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  const cacheRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('settings_clear_cache')
+      .setLabel('Clear Countdown')
+      .setEmoji('🗑️')
+      .setStyle(ButtonStyle.Danger),
+
+    new ButtonBuilder()
+      .setCustomId('settings_clear_all_cache')
+      .setLabel('Clear All Cache')
+      .setEmoji('🔥')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  // ═══════════════════════════════════════
+  // PAYLOAD
+  // ═══════════════════════════════════════
+  const payload = {
+  components: [
+    container,
+    providerSelect,
+    controlsRow,
+    cacheRow
+  ],
+  flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
+};
+
+  // ═══════════════════════════════════════
+  // SEND / UPDATE
+  // ═══════════════════════════════════════
+  if (isUpdate) {
+    try {
       if (interaction.deferred || interaction.replied) {
-        await interaction.editReply(payload).catch(() => interaction.followUp({ ...payload }));
+        await interaction.editReply(payload);
       } else {
-        await interaction.update(payload).catch(() => interaction.reply(payload));
+        await interaction.update(payload);
       }
-    } else {
-      await interaction.reply(payload);
+    } catch {
+      await interaction.followUp(payload);
     }
+  } else {
+    await interaction.reply(payload);
   }
+}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Bot update command
