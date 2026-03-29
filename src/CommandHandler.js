@@ -101,6 +101,7 @@ class CommandHandler {
     this.commands.set('botupdate', cmd('botupdate', 'Check for and apply bot updates').toJSON());
 
     this.commands.set('audio', cmd('audio', 'Manage custom audio files and view coverage').toJSON());
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Command registration
@@ -204,6 +205,114 @@ class CommandHandler {
       this.client.voiceManager.getTTSService().resetLibrary();
       return this._sendSettingsMenu(interaction, true);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUDIO UI HANDLERS
+    // ═══════════════════════════════════════════════════════════════════════════
+    
+    //  Refresh Main Menu
+    if (id === 'audio_refresh') return this._sendAudioMenu(interaction, true);
+      
+  // --- OPEN UPLOAD (Show V2 Modal) ---
+    if (id === 'audio_open_upload_v2') {
+      // Bypass discord.js validation entirely! We send the raw JSON directly 
+      // to Discord's API to prevent the library from stripping our V2 components.
+      return interaction.client.rest.post(
+        `/interactions/${interaction.id}/${interaction.token}/callback`,
+        {
+          body: {
+            type: 9, // 9 = Modal Interaction Response
+            data: {
+              title: 'Upload Custom Audio',
+              custom_id: 'audio_upload_modal',
+              components: [
+                {
+                  type: 18, // Label Component (V2)
+                  label: 'Drop file here or browse', 
+                  component: { 
+                    type: 19, // File Upload Component (V2)
+                    custom_id: 'audio_do_upload_file',
+                    required: true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      );
+    }
+
+   // --- HANDLE UPLOAD (Modal Submission) ---
+    if (id === 'audio_upload_modal') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+      // Grab the file from our raw packet interceptor!
+      const uploaded = this.rawAttachments.get(interaction.id);
+      this.rawAttachments.delete(interaction.id); // Clean up memory
+
+      if (!uploaded) {
+        return interaction.editReply({ content: '❌ No file was provided or the upload failed.' });
+      }
+
+      try {
+        // NOTE: The raw Discord API uses .filename instead of .name!
+        const buffer = await this._downloadBuffer(uploaded.url);
+        const result = await this.customAudio.saveFile(uploaded.filename, buffer);
+        
+        if (result.success) {
+          this.client.voiceManager.getTTSService().resetLibrary();
+          return interaction.editReply({
+            content: `✅ Successfully uploaded \`${uploaded.filename}\`!\nClose this message and click **Refresh** on the main menu to see it.`
+          });
+        } else {
+          return interaction.editReply({ content: `❌ ${result.error}` });
+        }
+      } catch (err) {
+        return interaction.editReply({ content: `❌ Error processing file: ${err.message}` });
+      }
+    }
+
+    // Open Delete Menu
+    if (id === 'audio_open_delete') {
+      const files = this.customAudio.listFiles();
+      if (!files.length) return interaction.reply({ content: '❌ No files to delete.', flags: MessageFlags.Ephemeral });
+      
+      const menu = new StringSelectMenuBuilder().setCustomId('audio_do_delete').setPlaceholder('Select a file to remove...')
+        .addOptions(files.slice(0, 25).map(f => ({ label: f.filename, value: f.filename, description: `${f.sizeKb} KB` })));
+      
+      return interaction.reply({ components: [new ActionRowBuilder().addComponents(menu)], flags: MessageFlags.Ephemeral });
+    }
+
+    // Process Delete
+    if (id === 'audio_do_delete') {
+      this.customAudio.deleteFile(interaction.values[0]);
+      this.client.voiceManager.getTTSService().resetLibrary();
+      return interaction.update({ content: `🗑️ Deleted \`${interaction.values[0]}\`.`, components: [] });
+    }
+
+    // Open Clear All Prompt
+    if (id === 'audio_ui_clear') {
+      const confirmRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('audio_ui_clear_confirm').setLabel('Yes, Delete Everything').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('audio_ui_clear_cancel').setLabel('No, Cancel').setStyle(ButtonStyle.Secondary)
+      );
+      return interaction.reply({
+        content: '⚠️ **Are you sure?** This will permanently delete **ALL** custom audio files.',
+        components: [confirmRow],
+        flags: MessageFlags.Ephemeral
+      });
+    }
+
+    // Process Clear All
+    if (id === 'audio_ui_clear_confirm') {
+      const n = this.customAudio.clearAll();
+      this.client.voiceManager.getTTSService().resetLibrary();
+      return interaction.update({ content: `🔥 Successfully deleted **${n}** custom audio files.`, components: [] });
+    }
+    if (id === 'audio_ui_clear_cancel') {await interaction.deferUpdate(); return interaction.deleteReply();}
+
+    // List Files
+    if (id === 'audio_ui_list') return this._audioList(interaction);
 
     // Unknown component — reply so Discord doesn't mark the interaction as failed
     await interaction.reply({ content: '❓ This button is no longer active.', flags: MessageFlags.Ephemeral }).catch(() => {});
