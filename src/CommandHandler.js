@@ -27,6 +27,19 @@ class CommandHandler {
     this.customAudio   = customAudio;
     this.updateManager = new UpdateManager();
     this.commands      = new Map();
+// --- 🚨 THE HEIST: Intercept raw Discord data before discord.js destroys it! ---
+    this.rawAttachments = new Map();
+    this.client.on('raw', packet => {
+      // MODAL_SUBMIT interaction
+      if (packet.t === 'INTERACTION_CREATE' && packet.d.type === 5) { 
+        const resolved = packet.d.data?.resolved;
+        if (resolved && resolved.attachments) {
+          // Snatch the file data and save it using the interaction ID as the key
+          this.rawAttachments.set(packet.d.id, Object.values(resolved.attachments)[0]);
+        }
+      }
+    });
+    // -----------------------------------------------------------------------------
     this._initCommands();
   }
 
@@ -87,22 +100,7 @@ class CommandHandler {
 
     this.commands.set('botupdate', cmd('botupdate', 'Check for and apply bot updates').toJSON());
 
-    this.commands.set('audio', cmd('audio', 'Manage custom audio files')
-      .addSubcommand(s => s.setName('list').setDescription('List uploaded custom audio files'))
-      .addSubcommand(s => s
-        .setName('upload')
-        .setDescription('Upload a custom audio file (attach the file to this command)')
-        .addAttachmentOption(o => o.setName('file').setDescription('WAV/MP3/OGG file').setRequired(true))
-      )
-      .addSubcommand(s => s
-        .setName('delete')
-        .setDescription('Delete a custom audio file')
-        .addStringOption(o => o.setName('filename').setDescription('Filename to delete (e.g. 5.wav)').setRequired(true))
-      )
-      .addSubcommand(s => s.setName('clear').setDescription('Delete ALL custom audio files'))
-      .addSubcommand(s => s.setName('coverage').setDescription('Show which numbers (1–60) have custom audio'))
-      .toJSON());
-  }
+    this.commands.set('audio', cmd('audio', 'Manage custom audio files and view coverage').toJSON());
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Command registration
@@ -146,7 +144,7 @@ class CommandHandler {
         case 'status':     return await this._handleStatus(interaction);
         case 'settings':   return await this._handleSettings(interaction);
         case 'botupdate':  return await this._handleBotUpdate(interaction);
-        case 'audio':      return await this._handleAudio(interaction);
+        case 'audio':      return await this._sendAudioMenu(interaction);
         default:
           await interaction.reply({ content: '❓ Unknown command.', flags: MessageFlags.Ephemeral });
       }
@@ -753,100 +751,75 @@ class CommandHandler {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Custom audio commands
+  // Custom audio UI
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async _handleAudio(interaction) {
-    const sub = interaction.options.getSubcommand();
+  async _sendAudioMenu(interaction, isUpdate = false) {
+    const { covered, missing } = this.customAudio.getNumberCoverage(1, 60);
+    const files = this.customAudio.listFiles();
 
-    switch (sub) {
-      case 'list':     return this._audioList(interaction);
-      case 'upload':   return this._audioUpload(interaction);
-      case 'delete':   return this._audioDelete(interaction);
-      case 'clear':    return this._audioClear(interaction);
-      case 'coverage': return this._audioCoverage(interaction);
-      default:
-        return interaction.reply({ content: '❓ Unknown audio subcommand.', flags: MessageFlags.Ephemeral });
-    }
+    const container = new ContainerBuilder()
+      .setAccentColor(0x00BCD4)
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `📊 **Audio Settings**`        
+        )
+      )
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `**Custom Audio Coverage**\n\n`+ 
+          `✅ **Covered (${covered.length}):**\n\`${covered.length ? covered.join(', ') : 'None'}\`\n\n` +
+          `❌ **Not Covered (${missing.length}):**\n-# ${missing.slice(0, 60).join(', ')}${missing.length > 60 ? '...' : ''}\n`+
+          `> uncovered numbers will be generated from TTS`
+        )
+      )
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true))
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `🎵 **Custom Audio**\n` +
+          `Uploaded: **${files.length} file(s)**\n` +
+          `-# Manage library and countdown cache in the \`/settings\` menu.`
+        )
+      );
+
+    const row1 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('audio_open_upload_v2').setLabel('Upload').setEmoji('📤').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('audio_open_delete').setLabel('Delete').setEmoji('🗑️').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('audio_ui_list').setLabel('List Files').setEmoji('📋').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('audio_refresh').setLabel('Refresh').setEmoji('🔄').setStyle(ButtonStyle.Secondary)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('audio_ui_clear').setLabel('Clear All').setEmoji('🔥').setStyle(ButtonStyle.Danger)
+    );
+
+    const payload = { 
+      components: [container, row1, row2], 
+      flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2 
+    };
+
+    if (isUpdate) await interaction.update(payload).catch(() => {});
+    else await interaction.reply(payload);
   }
 
   async _audioList(interaction) {
     const files = this.customAudio.listFiles();
     if (files.length === 0) {
-      return interaction.reply({
-        content: '📂 No custom audio files uploaded yet.\nUse `/audio upload` to add files.',
-        flags:   MessageFlags.Ephemeral,
-      });
+      return interaction.reply({ content: '📂 No custom audio files uploaded yet.', flags: MessageFlags.Ephemeral });
     }
-    const lines = files.map(f =>
-      `• \`${f.filename}\` — ${f.sizeKb} KB${f.number !== null ? ` (number ${f.number})` : ''}`,
-    );
+
+    // Pagination: Showing first 20 entries
+    const pageFiles = files.slice(0, 20);
+    const lines = pageFiles.map(f => `• \`${f.filename}\` — ${f.sizeKb} KB`);
+    
     const embed = new EmbedBuilder()
-      .setTitle(`🎵 Custom Audio Files (${files.length})`)
+      .setTitle(`📋 Custom Audio (Showing 1-${pageFiles.length} of ${files.length})`)
       .setColor('#00BCD4')
       .setDescription(lines.join('\n'))
       .setFooter({ text: 'Files are stored in config/custom_audio/' })
       .setTimestamp();
-    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-  }
-
-  async _audioUpload(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-    const attachment = interaction.options.getAttachment('file');
-    if (!attachment) return interaction.editReply('❌ No file attached.');
-
-    const sizeLimit = 5 * 1024 * 1024;
-    if (attachment.size > sizeLimit) {
-      return interaction.editReply(`❌ File too large (${Math.round(attachment.size / 1024)} KB). Max 5 MB.`);
-    }
-
-    const buffer = await this._downloadBuffer(attachment.url);
-    const result = await this.customAudio.saveFile(attachment.name, buffer);
-
-    if (!result.success) {
-      return interaction.editReply(`❌ ${result.error}`);
-    }
-
-    this.client.voiceManager.getTTSService().resetLibrary();
-
-    await interaction.editReply(
-      `✅ Uploaded \`${result.filename}\` successfully!\n` +
-      `The number library will regenerate on next launch to include your file.`,
-    );
-  }
-
-  async _audioDelete(interaction) {
-    const filename = interaction.options.getString('filename');
-    const result   = this.customAudio.deleteFile(filename);
-
-    if (!result.success) {
-      return interaction.reply({ content: `❌ ${result.error}`, flags: MessageFlags.Ephemeral });
-    }
-
-    this.client.voiceManager.getTTSService().resetLibrary();
-    await interaction.reply({ content: `🗑️ Deleted \`${filename}\`.`, flags: MessageFlags.Ephemeral });
-  }
-
-  async _audioClear(interaction) {
-    const count = this.customAudio.clearAll();
-    this.client.voiceManager.getTTSService().resetLibrary();
-    await interaction.reply({
-      content: `🗑️ Deleted **${count}** custom audio file(s).`,
-      flags:   MessageFlags.Ephemeral,
-    });
-  }
-
-  async _audioCoverage(interaction) {
-    const { covered, missing } = this.customAudio.getNumberCoverage(1, 60);
-    const embed = new EmbedBuilder()
-      .setTitle('📊 Custom Audio Coverage (1–60)')
-      .setColor('#4CAF50')
-      .addFields(
-        { name: `✅ Covered (${covered.length})`, value: covered.length ? covered.join(', ') : 'None',               inline: false },
-        { name: `❌ Missing (${missing.length})`,  value: missing.length  ? missing.join(', ')  : 'None — all covered!', inline: false },
-      )
-      .setTimestamp();
+      
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
   }
 
