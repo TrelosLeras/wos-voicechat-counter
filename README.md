@@ -18,7 +18,7 @@ We made a github wiki for the bot with all kinds of guides (ai generated) you ca
 | 🔢 Count direction | Toggle between **Count Down** (max→1) and **Count Up** (1→max) via `/settings` |
 | 📢 Rally intro | Optional spoken intro before counting; enable/disable via `/settings` |
 | 🔊 Voice generators | Choose from **local auto-detect**, **eSpeak NG**, **Festival**, **Piper neural TTS**, or **console** (see `DOCKER.md` for Piper setup) |
-| 🎵 Custom audio Menu| Upload and manage your own WAV/MP3/OGG files for numbers, the intro, and the outro via the ineractive `/audio` menu in Discord |
+| 🎵 Custom audio Menu| Upload and manage your own WAV/MP3/OGG files for numbers, the intro and the outro via the ineractive `/audio` menu in Discord |
 | ⚙️ Visual settings menu | Full interactive settings panel — `/settings` in Discord |
 | 🆕 In-bot updates | `/botupdate` checks GitHub Releases and can pull + reinstall automatically |
 | 💾 Persistent config | All settings survive restarts, saved in `config/settings.json` |
