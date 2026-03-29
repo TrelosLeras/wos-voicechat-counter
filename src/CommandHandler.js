@@ -262,7 +262,7 @@ class CommandHandler {
         if (result.success) {
           this.client.voiceManager.getTTSService().resetLibrary();
           return interaction.editReply({
-            content: `✅ Successfully uploaded \`${uploaded.filename}\`!\nClose this message and click **Refresh** on the main menu to see it.`
+            content: `✅ Successfully uploaded \`${uploaded.filename}\`!\nClose this message and click **Refresh** on the audio menu to see changes.`
           });
         } else {
           return interaction.editReply({ content: `❌ ${result.error}` });
